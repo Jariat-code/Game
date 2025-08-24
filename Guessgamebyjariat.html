@@ -1,1 +1,222 @@
+<!DOCTYPE html>
+<html>
+<head>
+ <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=0.7">
+  <title>Word Guess Game</title>
+  <style>
+    body { 
+    font-family: Arial; 
+    text-align: center; 
+    background: #c4cda0 ; 
+    }
+    #word { font-size: 2em; letter-spacing: 10px; }
+    #hint { color: #555; margin: 10px; }
+    input { 
+    padding: 20px; 
+    font-size: 1em; 
+    justify-content:center;
+    width:90%;
+    
+    }
+    button { 
+    padding: 20px; 
+    font-size: 1em; 
+    cursor: pointer; 
+    margin: 10px; 
+    display:block;
+    justify-content:center;
+    align-items:center;
+    border:none;
+    font-weight:bold;
+    }
+    .restart{
+    background-color:rgb(167, 0, 0);
+    color:white;
+    display:inline;
+    }
+     .guess{
+    background:rgb(190, 187, 181);
+    color:black;
+    display:inline;
+    }
+    
+    .nextword{
+    background:green;
+    color:black;
+    display:inline-block;
+    }
+    
+    .nextlevel{
+    background:blue;
+    color:black;
+    display:inline-block;
+    }
+    
+    
+    #scoreboard { margin-top: 15px; font-size: 1.2em; }
+    progress {
+    width: 90%; 
+    height: 15px; 
+    margin-bottom: 10px; 
+    background-color:blue;
+    border: 2px solid white;
+    margin-top: 10px; 
+    }
+    .main{
+    background-color:lightyellow;
+    align-items:center;
+    width:90%;
+    max-width:900px;
+    height:auto;
+    padding: 20px;
+    margin:auto;
+    box-shadow:0 0 10px gold;
+    }
+    h1{
+    font-size:50px;
+    font-weight:bold;
+    }
+  </style>
+</head>
+<body>
+<div class="main">
+ <br>  <br> 
+  <h1>🎮 Word Guess Game</h1>
+  <p id="hint"></p>
+  <p id="word"></p>
+   <br>  <br> <br>  
+  <input type="text" id="guess" maxlength="1" placeholder="Enter letter">
+  <br>  <br>  <br> <br>  <br>  
+  <button class="guess" onclick="makeGuess()">Guess</button>
+  <button class="restart" onclick="restartWord()">Restart Word</button>
+  <button  class="nextword" id="nextBtn" style="display:none;" onclick="nextWord()">Next Word</button>
+  <button class="nextlevel" id="nextLevelBtn" style="display:none;" onclick="nextWord()">Next Level</button>
+    <br> 
+  <p id="message"></p>
+  <p id="attempts"></p>
+  <p id="scoreboard"></p>
+    <br>  
+  <progress id="progress" value="0" max="100"></progress>
+  <br> <br> <br>
+</div>
+  <script>
+    let secretWord, guessed, attempts, score = 0, level = 1, progress = 0;
 
+    async function fetchWord() {
+      try {
+        // 1. Get random word
+        let res = await fetch("https://random-word-api.herokuapp.com/word?number=1");
+        let data = await res.json();
+        let word = data[0].toLowerCase();
+
+        // 2. Get definition
+        let defRes = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${word}`);
+        let defData = await defRes.json();
+
+        let meaning = "No definition found";
+        if (Array.isArray(defData) && defData[0].meanings) {
+          meaning = defData[0].meanings[0].definitions[0].definition;
+        }
+
+        return { word, meaning };
+      } catch {
+        return { word: "computer", meaning: "An electronic device" };
+      }
+    }
+
+    async function startGame() {
+      let { word, meaning } = await fetchWord();
+      secretWord = word;
+      guessed = [secretWord[0]]; // reveal first letter
+      attempts = secretWord.length + 3;
+
+      document.getElementById("hint").textContent =
+        `Hint: ${meaning}. Starts with "${secretWord[0].toUpperCase()}"`;
+      document.getElementById("attempts").textContent = `Attempts left: ${attempts}`;
+      document.getElementById("message").textContent = "";
+      document.getElementById("nextBtn").style.display = "none";
+      document.getElementById("nextLevelBtn").style.display = "none";
+      updateWord();
+      updateScoreboard();
+    }
+
+    function updateWord() {
+      let display = secretWord.split("").map(l => guessed.includes(l) ? l : "_").join(" ");
+      document.getElementById("word").textContent = display;
+    }
+
+    function updateScoreboard() {
+      document.getElementById("scoreboard").textContent =
+        `⭐ Score: ${score} | 🔢 Level: ${level}`;
+      document.getElementById("progress").value = progress;
+    }
+
+    function makeGuess() {
+      let input = document.getElementById("guess");
+      let letter = input.value.toLowerCase();
+      input.value = "";
+
+      if (!letter.match(/[a-z]/i) || letter.length !== 1) {
+        document.getElementById("message").textContent = "⚠️ Enter a single letter!";
+        return;
+      }
+
+      if (guessed.includes(letter)) {
+        document.getElementById("message").textContent = "⚠️ Already guessed!";
+        return;
+      }
+
+      guessed.push(letter);
+
+      if (secretWord.includes(letter)) {
+        document.getElementById("message").textContent = `✅ Good guess: ${letter}`;
+      } else {
+        attempts--;
+        document.getElementById("message").textContent = `❌ Wrong guess: ${letter}`;
+      }
+
+      updateWord();
+      document.getElementById("attempts").textContent = `Attempts left: ${attempts}`;
+
+      // 🎉 WIN case
+      if (!document.getElementById("word").textContent.includes("_")) {
+        document.getElementById("message").textContent = "🎉 You win!";
+        score += 10;
+        progress += 20; // +20% per word
+        if (progress >= 100) {
+          progress = 0;
+          level++;
+          document.getElementById("nextLevelBtn").style.display = "inline-block";
+        } else {
+          document.getElementById("nextBtn").style.display = "inline-block";
+        }
+        updateScoreboard();
+      } 
+      // 💀 LOSE case
+      else if (attempts <= 0) {
+        document.getElementById("message").textContent = `💀 You lost! The word was "${secretWord}"`;
+        score = 0; 
+        progress = 0; 
+        updateScoreboard();
+        document.getElementById("nextBtn").style.display = "inline-block";
+      }
+    }
+
+    function restartWord() {
+      guessed = [secretWord[0]];
+      attempts = secretWord.length + 3;
+      document.getElementById("message").textContent = "🔄 Restarted this word!";
+      document.getElementById("attempts").textContent = `Attempts left: ${attempts}`;
+      updateWord();
+    }
+
+    function nextWord() {
+      startGame();
+    }
+
+    // Start first game
+    startGame();
+  </script>
+</body>
+</html>
